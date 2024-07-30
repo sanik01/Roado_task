@@ -1,0 +1,64 @@
+interface UserSession {
+  userId: string;
+  deviceId: string;
+  logged_in: Date;
+  logged_out: Date | null;
+  lastOpenedAt: Date;
+}
+
+interface ActivePeriods {
+  [userId: string]: { start: Date; end: Date | null }[];
+}
+
+function getMonthlyActiveUsers(sessions: UserSession[]): { [month: string]: number } {
+  const activePeriods: ActivePeriods = {};
+
+  sessions.sort((a, b) => a.userId.localeCompare(b.userId) || a.logged_in.getTime() - b.logged_in.getTime());
+
+  for (const session of sessions) {
+    const userId = session.userId;
+    const activePeriod = activePeriods[userId] || [];
+
+    if (!session.logged_out) {
+      activePeriod.push({ start: session.logged_in, end: null });
+    } else {
+      const lastActivePeriod = activePeriod[activePeriod.length - 1];
+      if (lastActivePeriod && lastActivePeriod.end === null) {
+        lastActivePeriod.end = session.logged_out;
+      }
+    }
+
+    activePeriods[userId] = activePeriod;
+  }
+
+  const monthlyActiveUsers: { [month: string]: number } = {};
+
+  for (const month of getMonthsOfYear()) {
+    const startOfMonth = new Date(month);
+    const endOfMonth = new Date(startOfMonth.getFullYear(), startOfMonth.getMonth() + 1, 0);
+
+    let activeUsers = 0;
+
+    for (const userId in activePeriods) {
+      const activePeriod = activePeriods[userId];
+      for (const period of activePeriod) {
+        if (period.start < endOfMonth && (period.end === null || period.end > startOfMonth)) {
+          activeUsers++;
+          break;
+        }
+      }
+    }
+
+    monthlyActiveUsers[month] = activeUsers;
+  }
+
+  return monthlyActiveUsers;
+}
+
+function getMonthsOfYear(): string[] {
+  const months = [];
+  for (let i = 0; i < 12; i++) {
+    months.push(new Date(new Date().getFullYear(), i, 1).toISOString().slice(0, 7));
+  }
+  return months;
+}
